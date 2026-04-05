@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const { connectDB } = require('./config/db');
 const { initConnectionManager } = require('./managers/ConnectionManager');
 const { startGameLoop } = require('./GameLoop');
+const { startStatusLoop } = require('./managers/StatusManager');
 const mapData = require('./world/mapData');
 
 const app = express();
@@ -21,6 +22,7 @@ connectDB();
 
 initConnectionManager(io);
 startGameLoop(io);
+startStatusLoop(io);
 
 // if port is set in environment variables then use it
 // otherwise default use 3001

@@ -62,10 +62,11 @@ const onConnect        = (cb) => _on('connect', cb);
 const onDisconnect     = (cb) => _on('disconnect', cb);
 const onInteractStart  = (cb) => _on('interact:start', cb);
 const onChatHistory    = (cb) => _on('chat:history', cb);
+const onStatusBatch    = (cb) => _on('status:batch', cb);
 const onInteractEnd    = (cb) => _on('interact:end', cb);
 const onChatMessage    = (cb) => _on('chat:message', cb);
 const onLocationUpdate = (cb) => _on('location:update', cb);
 
 const disconnect = () => { hasJoined = false; socket?.disconnect(); socket = null; };
 
-export { connect, emitJoin, emitMove, emitChatMessage, onWorldSnapshot, onWorldState, onPlayerJoined, onPlayerLeft, onConnect, onDisconnect, onInteractStart, onInteractEnd, onChatMessage, onChatHistory, onLocationUpdate, disconnect };
+export { connect, emitJoin, emitMove, emitChatMessage, onWorldSnapshot, onWorldState, onPlayerJoined, onPlayerLeft, onConnect, onDisconnect, onInteractStart, onInteractEnd, onChatMessage, onChatHistory, onLocationUpdate, onStatusBatch, disconnect };

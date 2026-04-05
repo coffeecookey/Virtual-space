@@ -46,6 +46,20 @@ const useGameStore = create((set) => ({
   clearChatMessages: () => set({ chatMessages: [] }),
   setActiveChatRoom: (roomId) => set({ activeChatRoom: roomId }),
   setConnectedUsers: (users) => set({ connectedUsers: users }),
+
+  currentRoom: null,
+  playerStatuses: new Map(),
+  setCurrentRoom: (room) => set({ currentRoom: room }),
+  setPlayerStatus: (userId, status) => set((s) => {
+    const m = new Map(s.playerStatuses);
+    m.set(userId, status);
+    return { playerStatuses: m };
+  }),
+  applyStatusBatch: (batch) => set((s) => {
+    const m = new Map(s.playerStatuses);
+    Object.entries(batch).forEach(([uid, status]) => m.set(uid, status));
+    return { playerStatuses: m };
+  }),
 }));
 
 export default useGameStore;

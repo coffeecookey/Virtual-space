@@ -3,6 +3,8 @@ const { clearUser } = require('./RoomManager');
 const User = require('../models/User');
 const { registerMovementHandler } = require('../handlers/movementHandler');
 const { registerChatHandler } = require('../handlers/chatHandler');
+const { registerUserHandler } = require('../handlers/userHandler');
+const { updateActivity } = require('./StatusManager');
 const { SPAWN_POSITION } = require('../config/constants');
 
 const socketToUser = new Map();
@@ -11,6 +13,7 @@ const socketToUser = new Map();
 const handleConnect = async (socket, io) => {
   registerMovementHandler(socket, socketToUser);
   registerChatHandler(socket, io, socketToUser);
+  registerUserHandler(socket, socketToUser);
   // when a user joins, create a new user in the database and add them to the world state
   socket.on('user:join', async ({ name }) => {
     const existing = socketToUser.get(socket.id);
@@ -33,6 +36,7 @@ const handleConnect = async (socket, io) => {
     console.log(`Socket mapped to user: ${socket.id} -> ${userId}`);
     // Add the new player to the world state with initial position and name
     addPlayer(userId, { x: SPAWN_POSITION.x, y: SPAWN_POSITION.y, name, socketId: socket.id });
+    updateActivity(userId);
 
     socket.emit('world:snapshot', { userId, players: getAll() });
     socket.broadcast.emit('player:joined', { userId, x: SPAWN_POSITION.x, y: SPAWN_POSITION.y, name });

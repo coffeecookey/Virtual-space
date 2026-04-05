@@ -9,6 +9,7 @@ import {
   connect, emitJoin, emitMove, disconnect,
   onWorldSnapshot, onWorldState, onPlayerJoined, onPlayerLeft,
   onInteractStart, onInteractEnd, onChatMessage, onChatHistory,
+  onLocationUpdate, onStatusBatch,
 } from '../network/SocketClient';
 const MAP_BOUNDS = { width: 2000, height: 2000 };
 
@@ -25,7 +26,7 @@ export default function GameCanvas({ playerName }) {
   const stateRef = useRef({ localId: null, players: new Map(), localX: 0, localY: 0, lastTick: -1, rooms: [] });
 
   // We extract the setLocalPlayer, addPlayer, and removePlayer functions from the game store 
-  const { setLocalPlayer, addPlayer, removePlayer, addChatMessage, setActiveChatRoom, setConnectedUsers } = useGameStore.getState();
+  const { setLocalPlayer, addPlayer, removePlayer, addChatMessage, setActiveChatRoom, setConnectedUsers, setCurrentRoom, applyStatusBatch } = useGameStore.getState();
 
   // useEffect is used to initialize the game when the component mounts, by: 
   // rendering stage, setup input handling, connecting to the server, and setting up socket event listeners for game state updates
@@ -122,6 +123,10 @@ export default function GameCanvas({ playerName }) {
 
     unsubs.push(onChatMessage((msg) => addChatMessage(msg)));
     unsubs.push(onChatHistory((msgs) => useGameStore.getState().setChatMessages(msgs)));
+    unsubs.push(onLocationUpdate(({ userId, room }) => {
+      if (userId === stateRef.current.localId) setCurrentRoom(room);
+    }));
+    unsubs.push(onStatusBatch((batch) => applyStatusBatch(batch)));
 
     // The app.ticker.add function is called on every frame of the game loop
     app.ticker.add(() => {
