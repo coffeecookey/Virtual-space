@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  preview: {
+  allowedHosts: ['virtual-office-nmfs.onrender.com']
+  },
   server: {
     proxy: {
       '/socket.io': { target: 'http://localhost:3001', ws: true },
