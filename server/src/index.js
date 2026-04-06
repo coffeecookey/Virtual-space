@@ -14,6 +14,8 @@ const { rooms, obstacles } = require('./world/mapData');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
+const cors = require('cors');
+app.use(cors({ origin: 'https://virtual-office-nmfs.onrender.com' }));
 
 app.use(express.json());
 app.get('/api/map', (_req, res) => res.json({ rooms, obstacles }));
