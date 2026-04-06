@@ -60,6 +60,13 @@ const useGameStore = create((set) => ({
     Object.entries(batch).forEach(([uid, status]) => m.set(uid, status));
     return { playerStatuses: m };
   }),
+
+  toasts: [],
+  addToast: (message) => set((s) => {
+    const id = Date.now() + Math.random();
+    return { toasts: [...s.toasts, { id, message }] };
+  }),
+  removeToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
 export default useGameStore;

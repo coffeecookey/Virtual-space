@@ -6,6 +6,7 @@ import ChatPanel from './components/ChatPanel';
 import UserPanel from './components/UserPanel';
 import LocationBar from './components/LocationBar';
 import HelpModal from './components/HelpModal';
+import Toast from './components/Toast';
 
 export default function App() {
   const [name, setName]   = useState(null);
@@ -22,6 +23,7 @@ export default function App() {
         <ChatPanel />
         <LocationBar />
         <HelpModal />
+        <Toast />
       </>}
     </>
   );

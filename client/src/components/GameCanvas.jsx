@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
+import * as PIXI from 'pixi.js';
 import { initRenderer } from '../core/Renderer';
 import { initInput, getVelocity } from '../core/InputHandler';
 import { fetchMapData, loadMap } from '../core/MapLoader';
 import { applyCamera } from '../core/Camera';
 import Player from '../entities/Player';
 import useGameStore from '../state/useGameStore';
+import theme from '../theme';
 import {
   connect, emitJoin, emitMove, disconnect,
   onWorldSnapshot, onWorldState, onPlayerJoined, onPlayerLeft,
@@ -12,6 +14,8 @@ import {
   onLocationUpdate, onStatusBatch,
 } from '../network/SocketClient';
 const MAP_BOUNDS = { width: 2000, height: 2000 };
+const LABEL_FADE_START = 180;
+const LABEL_FADE_END = 280;
 
 // clamp is a utility function that restricts a value v to be within the range defined by min and max.
 // It uses Math.min and Math.max to ensure that v does not go below min or above max, effectively clamping it within the specified range.
@@ -26,7 +30,7 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
   const stateRef = useRef({ localId: null, players: new Map(), localX: 0, localY: 0, lastTick: -1, rooms: [] });
 
   // We extract the setLocalPlayer, addPlayer, and removePlayer functions from the game store 
-  const { setLocalPlayer, addPlayer, removePlayer, addChatMessage, setActiveChatRoom, setConnectedUsers, setCurrentRoom, applyStatusBatch } = useGameStore.getState();
+  const { setLocalPlayer, addPlayer, removePlayer, addChatMessage, setActiveChatRoom, setConnectedUsers, setCurrentRoom, applyStatusBatch, addToast } = useGameStore.getState();
 
   // useEffect is used to initialize the game when the component mounts, by: 
   // rendering stage, setup input handling, connecting to the server, and setting up socket event listeners for game state updates
@@ -112,14 +116,15 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
     }));
 
     unsubs.push(onInteractStart(({ roomId, members }) => {
-      console.log('[Client] interact:start received', roomId, members);
       setActiveChatRoom(roomId);
       setConnectedUsers(members);
+      addToast('Nearby chat started');
     }));
 
     unsubs.push(onInteractEnd(() => {
       setActiveChatRoom(null);
       setConnectedUsers([]);
+      addToast('Left nearby chat');
     }));
 
     unsubs.push(onChatMessage((msg) => addChatMessage(msg)));
@@ -129,9 +134,13 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
     }));
     unsubs.push(onStatusBatch((batch) => applyStatusBatch(batch)));
 
-    // The app.ticker.add function is called on every frame of the game loop
+    const lines = new PIXI.Graphics();
+    stage.addChildAt(lines, 0);
+
     app.ticker.add(() => {
       const { localId, players } = stateRef.current;
+      lines.clear();
+
       if (localId) {
         const { vx, vy } = getVelocity();
         const prevX = stateRef.current.localX;
@@ -143,7 +152,31 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
         const lp = players.get(localId);
         if (lp) lp.update(stateRef.current.localX, stateRef.current.localY);
         applyCamera(stage, stateRef.current.localX, stateRef.current.localY);
+
+        const lx = stateRef.current.localX;
+        const ly = stateRef.current.localY;
+        players.forEach((p) => {
+          if (p.isLocal) return;
+          const dx = p.container.x - lx;
+          const dy = p.container.y - ly;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          // label opacity: fade in as remote player approaches
+          const labelAlpha = dist < LABEL_FADE_START ? 1
+            : dist > LABEL_FADE_END ? 0
+            : 1 - (dist - LABEL_FADE_START) / (LABEL_FADE_END - LABEL_FADE_START);
+          p.setLabelOpacity(labelAlpha);
+
+          // connection line when within proximity ring
+          if (dist < LABEL_FADE_END) {
+            const lineAlpha = labelAlpha * 0.4;
+            lines.lineStyle(1, theme.localPlayer, lineAlpha);
+            lines.moveTo(lx, ly);
+            lines.lineTo(p.container.x, p.container.y);
+          }
+        });
       }
+
       players.forEach((p) => p.tick());
     });
 
