@@ -15,18 +15,22 @@ const handleConnect = async (socket, io) => {
   registerChatHandler(socket, io, socketToUser);
   registerUserHandler(socket, socketToUser);
   // when a user joins, create a new user in the database and add them to the world state
-  socket.on('user:join', async ({ name }) => {
+  socket.on('user:join', async (data) => {
+    console.log('[Join] received:', data);
+    const { name, avatarId } = data;
+    const safeAvatar = [1, 2, 3].includes(avatarId) ? avatarId : 1;
     const existing = socketToUser.get(socket.id);
     if (existing) { removePlayer(existing); clearUser(existing); socketToUser.delete(socket.id); }
     const user = await User.create({ name });
     const userId = user._id.toString();
     socketToUser.set(socket.id, userId);
-    // Add the new player to the world state with initial position and name
-    addPlayer(userId, { x: SPAWN_POSITION.x, y: SPAWN_POSITION.y, name, socketId: socket.id });
+    addPlayer(userId, { x: SPAWN_POSITION.x, y: SPAWN_POSITION.y, name, avatarId: safeAvatar, socketId: socket.id });
     updateActivity(userId);
 
-    socket.emit('world:snapshot', { userId, players: getAll() });
-    socket.broadcast.emit('player:joined', { userId, x: SPAWN_POSITION.x, y: SPAWN_POSITION.y, name });
+    const allPlayers = getAll();
+    console.log('[Snapshot] players:', JSON.stringify(Object.values(allPlayers).map(p => ({ name: p.name, avatarId: p.avatarId }))));
+    socket.emit('world:snapshot', { userId, players: allPlayers });
+    socket.broadcast.emit('player:joined', { userId, x: SPAWN_POSITION.x, y: SPAWN_POSITION.y, name, avatarId: safeAvatar });
   });
 
   // when a user disconnects, remove them from the world state 

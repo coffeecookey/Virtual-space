@@ -5,6 +5,7 @@ import * as PIXI from 'pixi.js';
 import { fetchMapData, loadMap, getObstacles } from '../core/MapLoader';
 import { applyCamera, destroyCamera } from '../core/Camera';
 import Player from '../entities/Player';
+import { preloadAll } from '../core/SpriteLoader';
 import useGameStore from '../state/useGameStore';
 import {
   connect, emitJoin, emitMove, disconnect,
@@ -35,12 +36,12 @@ const collidesWithObstacles = (x, y) => {
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
 // GameCanvas is the main component responsible for rendering the game canvas and managing the game state for the local player and remote players.
-export default function GameCanvas({ playerName, onReady, hidden }) {
+export default function GameCanvas({ playerName, avatarId = 1, onReady, hidden }) {
   const canvasRef = useRef(null);
 
   // stateRef is a mutable reference that holds the current state of the game, 
   // including the local player's ID, a Map of all players, and the local player's current x and y coordinates.
-  const stateRef = useRef({ localId: null, players: new Map(), localX: 0, localY: 0, lastTick: -1, rooms: [] });
+  const stateRef = useRef({ localId: null, players: new Map(), localX: 0, localY: 0, lastTick: -1, rooms: [], spritesReady: false });
 
   // We extract the setLocalPlayer, addPlayer, and removePlayer functions from the game store 
   const { setLocalPlayer, addPlayer, removePlayer, addChatMessage, setActiveChatRoom, setConnectedUsers, setCurrentRoom, applyStatusBatch, addToast } = useGameStore.getState();
@@ -63,6 +64,11 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
     };
     canvasRef.current.addEventListener('wheel', onWheel, { passive: false });
     initInput();
+    connect();
+    preloadAll().then(() => {
+      stateRef.current.spritesReady = true;
+      emitJoin(playerName, avatarId);
+    });
     const debugLayer = new PIXI.Container();
     debugLayer.visible = false;
     const dbgPlayerText = new PIXI.Text('', { fontSize: 12, fill: 0xffffff });
@@ -76,7 +82,7 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
       mouseWorld.x = p.x; mouseWorld.y = p.y;
     });
 
-    fetchMapData().then((roomsData) => loadMap(stage, roomsData)).then((rooms) => {
+    fetchMapData().then((r) => loadMap(stage, r)).then((rooms) => {
       stateRef.current.rooms = rooms;
 
       const dbgGraphics = new PIXI.Graphics();
@@ -95,13 +101,9 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
       debugLayer.addChildAt(dbgGraphics, 0);
       stage.addChild(debugLayer);
     });
-    connect();
-    emitJoin(playerName);
-
-    // createPlayer is a helper function that creates a new Player instance, 
-    // adds it to the PIXI stage, and stores it in the stateRef's players Map.
-    const createPlayer = (uid, name, x, y, isLocal) => {
-      const p = new Player(uid, name, x, y, isLocal);
+    const createPlayer = (uid, name, x, y, isLocal, aid = 1) => {
+      console.log('[Create] player:', uid, 'avatarId:', aid);
+      const p = new Player(uid, name, x, y, isLocal, aid);
       stage.addChild(p.container);
       stateRef.current.players.set(uid, p);
       return p;
@@ -121,9 +123,10 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
 
       // We then set the local player's ID in the stateRef and iterate through the players in the snapshot to create Player instances for each one.
       stateRef.current.localId = userId;
+      console.log('[Snapshot] received players:', Object.values(players).map(p => ({ name: p.name, avatarId: p.avatarId })));
       for (const [uid, data] of Object.entries(players)) {
         const isLocal = uid === userId;
-        createPlayer(uid, data.name, data.x, data.y, isLocal);
+        createPlayer(uid, data.name, data.x, data.y, isLocal, isLocal ? avatarId : (data.avatarId || 1));
         // If the player in the snapshot is the local player, we update the localX and localY in the stateRef and set the local player's state in the game store.
         if (isLocal) {
           stateRef.current.localX = data.x;
@@ -140,9 +143,9 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
 
     // The onPlayerJoined event listener is called when a new player joins the game
     // it creates a new Player instance for the new player and adds them to the game store.
-    unsubs.push(onPlayerJoined(({ userId, x, y, name }) => {
+    unsubs.push(onPlayerJoined(({ userId, x, y, name, avatarId: aid }) => {
       if (stateRef.current.players.has(userId)) return;
-      createPlayer(userId, name, x, y, false);
+      createPlayer(userId, name, x, y, false, aid || 1);
       addPlayer(userId, { x, y, name });
     }));
 
@@ -163,7 +166,10 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
       for (const [uid, data] of Object.entries(snapshot)) {
         if (uid === localId) continue;
         let p = players.get(uid);
-        if (!p) p = createPlayer(uid, data.name || 'Unknown', data.x, data.y, false);
+        if (!p) {
+          if (!stateRef.current.spritesReady) continue;
+          p = createPlayer(uid, data.name || 'Unknown', data.x, data.y, false, data.avatarId || 1);
+        }
         p.update(data.x, data.y);
       }
     }));
@@ -190,7 +196,7 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
     unsubs.push(onDisconnect(() => addToast('Connection lost. Reconnecting…')));
     unsubs.push(onReconnect(() => {
       addToast('Reconnected');
-      emitJoin(playerName);
+      emitJoin(playerName, avatarId);
     }));
 
     app.ticker.add(() => {
@@ -218,7 +224,12 @@ export default function GameCanvas({ playerName, onReady, hidden }) {
           emitMove(stateRef.current.localX, stateRef.current.localY);
         useGameStore.getState().setLocalCoords(stateRef.current.localX, stateRef.current.localY);
         const lp = players.get(localId);
-        if (lp) lp.update(stateRef.current.localX, stateRef.current.localY);
+        if (lp) {
+          lp.update(stateRef.current.localX, stateRef.current.localY);
+          const speed = Math.sqrt(vx * vx + vy * vy);
+          lp.setState(speed < 0.5 ? 'idle' : speed < 4 ? 'walk' : 'run');
+          lp.setDirection(vx);
+        }
         applyCamera(stage, stateRef.current.localX, stateRef.current.localY, zoom);
 
         const lx = stateRef.current.localX;

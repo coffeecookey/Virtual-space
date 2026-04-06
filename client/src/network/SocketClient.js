@@ -21,11 +21,12 @@ const connect = () => {
 
 // emitJoin is called when the player submits their name to join the game. 
 // It emits a 'user:join' event to the server with the player's name.
-const emitJoin = (name) => {
+const emitJoin = (name, avatarId = 1) => {
   if (!socket) return console.warn('emitJoin: no socket');
   if (hasJoined) return;
   hasJoined = true;
-  socket.emit('user:join', { name });
+  console.log('[Socket] emitJoin:', name, avatarId);
+  socket.emit('user:join', { name, avatarId });
 };
 
 // emitMove is called when the local player moves. 

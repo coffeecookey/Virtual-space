@@ -1,19 +1,22 @@
 import * as PIXI from 'pixi.js';
 import theme from '../theme';
+import { getTextures } from '../core/SpriteLoader';
 
-const RADIUS = theme.playerRadius;
 const LERP_FACTOR = 0.15;
 const PROXIMITY_RING_RADIUS = 150;
+const SCALE = 2;
 
 class Player {
-  constructor(userId, name, x, y, isLocal = false) {
+  constructor(userId, name, x, y, isLocal = false, avatarId = 1) {
     this.userId = userId;
     this.isLocal = isLocal;
     this.targetX = x;
     this.targetY = y;
-    this._pulseT = 0;
+    this.currentState = null;
+    this._fading = false;
 
     this.container = new PIXI.Container();
+    this.container.scale.set(SCALE);
 
     if (isLocal) {
       this._ring = new PIXI.Graphics();
@@ -21,40 +24,73 @@ class Player {
       this._drawRing(1);
     }
 
-    this._circle = new PIXI.Graphics();
-    this._circle.beginFill(isLocal ? theme.localPlayer : theme.remotePlayer);
-    this._circle.drawCircle(0, 0, RADIUS);
-    this._circle.endFill();
+    // Sprite sub-container — only this gets flipped for direction
+    this._spriteContainer = new PIXI.Container();
+    this.container.addChild(this._spriteContainer);
 
+    const textures = getTextures(avatarId) || {};
+    this._sprites = {};
+    try {
+      for (const [state, frames] of Object.entries(textures)) {
+        const anim = new PIXI.AnimatedSprite(frames);
+        anim.anchor.set(0.5, 1.0);
+        anim.animationSpeed = 0.15;
+        anim.visible = false;
+        anim.play();
+        this._sprites[state] = anim;
+        this._spriteContainer.addChild(anim);
+      }
+    } catch (e) {
+      console.error('[Player] sprite creation failed for avatarId:', avatarId, e);
+      const fallback = new PIXI.Graphics();
+      fallback.beginFill(isLocal ? theme.localPlayer : theme.remotePlayer);
+      fallback.drawCircle(0, -16, 16);
+      fallback.endFill();
+      this._spriteContainer.addChild(fallback);
+    }
+
+    // Labels go directly on container (not spriteContainer) so they don't flip
     this._label = new PIXI.Text(name, {
-      fontSize: theme.labelFontSize,
+      fontSize: theme.labelFontSize / SCALE,
       fill: theme.labelColor,
       fontFamily: theme.labelFont,
     });
     this._label.anchor.set(0.5);
-    this._label.y = RADIUS + 10;
-
-    this.container.addChild(this._circle, this._label);
+    this._label.y = 6;
+    this.container.addChild(this._label);
 
     if (isLocal) {
       const youTag = new PIXI.Text('(You)', {
-        fontSize: 10,
+        fontSize: 8,
         fill: theme.localPlayer,
         fontFamily: theme.labelFont,
       });
       youTag.anchor.set(0.5);
-      youTag.y = RADIUS + 24;
+      youTag.y = 15;
       this.container.addChild(youTag);
     }
 
     this.container.x = x;
     this.container.y = y;
+    this.setState('idle');
   }
 
   _drawRing(alpha) {
     this._ring.clear();
-    this._ring.lineStyle(1.5, theme.localPlayer, alpha * 0.35);
-    this._ring.drawCircle(0, 0, PROXIMITY_RING_RADIUS);
+    this._ring.lineStyle(0.75, theme.localPlayer, alpha * 0.35);
+    this._ring.drawCircle(0, -16, PROXIMITY_RING_RADIUS / SCALE);
+  }
+
+  setState(newState) {
+    if (newState === this.currentState || !this._sprites[newState]) return;
+    if (this._sprites[this.currentState]) this._sprites[this.currentState].visible = false;
+    this._sprites[newState].visible = true;
+    this.currentState = newState;
+  }
+
+  setDirection(vx) {
+    if (vx > 0) this._spriteContainer.scale.x =  1;
+    if (vx < 0) this._spriteContainer.scale.x = -1;
   }
 
   setLabelOpacity(alpha) {
@@ -76,16 +112,18 @@ class Player {
     if (this.isLocal) {
       this.container.x = this.targetX;
       this.container.y = this.targetY;
-
-      this._pulseT += 0.04;
-      const scale = 1 + Math.sin(this._pulseT) * 0.06;
-      this._circle.scale.set(scale);
-
-      const ringAlpha = 0.6 + Math.sin(this._pulseT * 0.7) * 0.4;
-      this._drawRing(ringAlpha);
+      if (this._ring) {
+        this._pulseT = (this._pulseT || 0) + 0.04;
+        this._drawRing(0.6 + Math.sin(this._pulseT * 0.7) * 0.4);
+      }
     } else {
-      this.container.x += (this.targetX - this.container.x) * LERP_FACTOR;
-      this.container.y += (this.targetY - this.container.y) * LERP_FACTOR;
+      const dx = this.targetX - this.container.x;
+      const dy = this.targetY - this.container.y;
+      this.container.x += dx * LERP_FACTOR;
+      this.container.y += dy * LERP_FACTOR;
+      const delta = Math.sqrt(dx * dx + dy * dy);
+      this.setState(delta < 1.0 ? 'idle' : 'walk');
+      if (Math.abs(dx) > 0.5) this.setDirection(dx);
     }
   }
 
@@ -96,7 +134,7 @@ class Player {
 
   destroy(stage) {
     stage.removeChild(this.container);
-    this.container.destroy({ children: true });
+    this.container.destroy({ children: true, texture: false, baseTexture: false });
   }
 }
 

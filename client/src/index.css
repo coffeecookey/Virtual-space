@@ -3,4 +3,21 @@
 @tailwind utilities;
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; background: var(--color-bg, #000); }
+
+body {
+  overflow: hidden;
+  background: #0B0F1A;
+  color: #FFFFFF;
+  font-family: 'Inter', sans-serif;
+  transition: all 150ms ease-out;
+}
+
+::selection {
+  background: rgba(91, 111, 255, 0.3);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1B2232; }
+::-webkit-scrollbar-thumb { background: #5B6FFF; border-radius: 3px; }
+
+* { transition: background-color 150ms ease-out, border-color 150ms ease-out, opacity 150ms ease-out; }

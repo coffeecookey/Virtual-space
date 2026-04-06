@@ -5,7 +5,7 @@
 const players = new Map();
 
 // Functions to manage the world state
-const addPlayer = (userId, data) => { players.set(userId, data); };
+const addPlayer = (userId, data) => { console.log('[WorldState] storing:', userId, data.avatarId); players.set(userId, data); };
 const removePlayer = (userId) => players.delete(userId);
 const updatePlayer = (userId, x, y) => {
   const player = players.get(userId);
