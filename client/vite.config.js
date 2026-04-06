@@ -4,7 +4,11 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   preview: {
-  allowedHosts: ['virtual-office-nmfs.onrender.com']
+    allowedHosts: ['virtual-office-nmfs.onrender.com'],
+    proxy: {
+      '/socket.io': { target: 'https://virtual-space.onrender.com', ws: true },
+      '/api': { target: 'https://virtual-space.onrender.com' },
+    },
   },
   server: {
     proxy: {
