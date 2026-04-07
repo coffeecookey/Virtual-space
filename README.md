@@ -4,7 +4,7 @@ A 2D virtual office where users move around and chat with nearby players in real
 
 ## Deployed site and demo video
 
-[Live Deployed site](https://virtual-office-nmfs.onrender.com/)
+[Live Deployed site](https://virtual-office-nmfs.onrender.com/) and 
 [Video link](https://canva.link/x5tzjghzu5690xp)
 
 ## Some screenshots!
