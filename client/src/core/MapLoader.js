@@ -1,16 +1,17 @@
 import * as PIXI from 'pixi.js';
 import Room from '../entities/Room';
-const API_URL = import.meta.env.VITE_API_URL || '';
 
 let _obstacles = [];
+let _rooms = [];
 
 const fetchMapData = async () => {
-  const res = await fetch('/api/map')
+  const res = await fetch('/api/map');
   return res.json();
 };
 
 const loadMap = async (stage, { rooms, obstacles }) => {
   _obstacles = obstacles || [];
+  _rooms = rooms || [];
 
   const texture = await PIXI.Assets.load('/mapfinal_2000_1500.png');
   const bg = new PIXI.Sprite(texture);
@@ -22,5 +23,7 @@ const loadMap = async (stage, { rooms, obstacles }) => {
 };
 
 const getObstacles = () => _obstacles;
+const getRooms = () => _rooms;
+const getMapRooms = () => _rooms;
 
-export { fetchMapData, loadMap, getObstacles };
+export { fetchMapData, loadMap, getObstacles, getRooms, getMapRooms };

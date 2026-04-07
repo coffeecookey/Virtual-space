@@ -11,6 +11,7 @@ const socketToUser = new Map();
 
 // handle socket connection and disconnection
 const handleConnect = async (socket, io) => {
+  console.log('[Connect] socket connected:', socket.id);
   registerMovementHandler(socket, socketToUser);
   registerChatHandler(socket, io, socketToUser);
   registerUserHandler(socket, socketToUser);
@@ -25,6 +26,10 @@ const handleConnect = async (socket, io) => {
     const userId = user._id.toString();
     socketToUser.set(socket.id, userId);
     addPlayer(userId, { x: SPAWN_POSITION.x, y: SPAWN_POSITION.y, name, avatarId: safeAvatar, socketId: socket.id });
+    const { rooms } = require('../world/mapData');
+    const spawnRoom = rooms.find(r => SPAWN_POSITION.x >= r.x && SPAWN_POSITION.x <= r.x + r.width && SPAWN_POSITION.y >= r.y && SPAWN_POSITION.y <= r.y + r.height);
+    socket.emit('location:update', { userId, room: spawnRoom?.id || 'hallway' });
+    console.log('[Location] emitted on join:', userId, spawnRoom?.id || 'hallway');
     updateActivity(userId);
 
     const allPlayers = getAll();

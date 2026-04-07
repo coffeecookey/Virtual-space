@@ -1,7 +1,7 @@
 const rooms = [
-  { id: 'lobby',   name: 'Lobby',        x: 30,   y: 30,  width: 825, height: 505 },
-  { id: 'meeting', name: 'Meeting Room',  x: 1145, y: 30,  width: 825, height: 440 },
-  { id: 'lounge',  name: 'Lounge',        x: 560,  y: 685, width: 620, height: 555 },
+  { id: 'lobby',   name: 'Lobby',        x: 90,   y: 89,  width: 915, height: 609 },
+  { id: 'meeting', name: 'Meeting Room',  x: 1270, y: 92,  width: 640, height: 506 },
+  { id: 'lounge',  name: 'Lounge',        x: 684,  y: 885, width: 690, height: 530 },
 ];
 
 const obstacles = [

@@ -1,36 +1,31 @@
 import { create } from 'zustand';
 
-// The game store manages the state of the local player and remote players in the game.
 const useGameStore = create((set) => ({
-  // The localPlayer holds the state of the player controlled by the user and is initialized to null until the player joins the game.
   localPlayer: null,
-
-  // remotePlayers is a Map that holds the state of all other players in the game
   remotePlayers: new Map(),
 
-  // setLocalPlayer is a function to update the local player's state in the store when they join the game or when their state changes.
   setLocalPlayer: (player) => set({ localPlayer: player }),
-
-  // addPlayer adds a new player to the remotePlayers Map when a new player joins the game.
   addPlayer: (userId, data) => set((s) => {
     const m = new Map(s.remotePlayers);
     m.set(userId, data);
     return { remotePlayers: m };
   }),
-
-  // removePlayer removes a player from the remotePlayers Map when a player leaves the game.
   removePlayer: (userId) => set((s) => {
     const m = new Map(s.remotePlayers);
     m.delete(userId);
     return { remotePlayers: m };
   }),
-
-  // updatePositions is called when the server sends updated positions for all players.
   updatePositions: (players) => set((s) => {
     const m = new Map(s.remotePlayers);
     for (const [uid, data] of Object.entries(players)) {
       if (m.has(uid)) m.set(uid, { ...m.get(uid), ...data });
     }
+    return { remotePlayers: m };
+  }),
+  updatePlayerPosition: (uid, x, y) => set((s) => {
+    if (!s.remotePlayers.has(uid)) return s;
+    const m = new Map(s.remotePlayers);
+    m.set(uid, { ...m.get(uid), x, y });
     return { remotePlayers: m };
   }),
 
@@ -49,6 +44,9 @@ const useGameStore = create((set) => ({
 
   currentRoom: null,
   playerStatuses: new Map(),
+  // map of userId → room name string (null = hallway/corridor)
+  playerRooms: new Map(),
+
   setCurrentRoom: (room) => set({ currentRoom: room }),
   setPlayerStatus: (userId, status) => set((s) => {
     const m = new Map(s.playerStatuses);
@@ -60,14 +58,19 @@ const useGameStore = create((set) => ({
     Object.entries(batch).forEach(([uid, status]) => m.set(uid, status));
     return { playerStatuses: m };
   }),
+  setPlayerRooms: (map) => set({ playerRooms: map }),
 
   localCoords: { x: 0, y: 0 },
   setLocalCoords: (x, y) => set({ localCoords: { x, y } }),
 
   toasts: [],
-  addToast: (message) => set((s) => {
+  // accepts string or { message, type: 'info'|'join'|'leave' }
+  addToast: (payload) => set((s) => {
     const id = Date.now() + Math.random();
-    return { toasts: [...s.toasts, { id, message }] };
+    const toast = typeof payload === 'string'
+      ? { id, message: payload, type: 'info' }
+      : { id, message: payload.message, type: payload.type || 'info' };
+    return { toasts: [...s.toasts, toast] };
   }),
   removeToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));

@@ -44,7 +44,7 @@ export default function GameCanvas({ playerName, avatarId = 1, onReady, hidden }
   const stateRef = useRef({ localId: null, players: new Map(), localX: 0, localY: 0, lastTick: -1, rooms: [], spritesReady: false });
 
   // We extract the setLocalPlayer, addPlayer, and removePlayer functions from the game store 
-  const { setLocalPlayer, addPlayer, removePlayer, addChatMessage, setActiveChatRoom, setConnectedUsers, setCurrentRoom, applyStatusBatch, addToast } = useGameStore.getState();
+  const { setLocalPlayer, addPlayer, removePlayer, addChatMessage, setActiveChatRoom, setConnectedUsers, setCurrentRoom, applyStatusBatch, addToast, setPlayerRooms } = useGameStore.getState();
 
   // useEffect is used to initialize the game when the component mounts, by: 
   // rendering stage, setup input handling, connecting to the server, and setting up socket event listeners for game state updates
@@ -131,7 +131,7 @@ export default function GameCanvas({ playerName, avatarId = 1, onReady, hidden }
         if (isLocal) {
           stateRef.current.localX = data.x;
           stateRef.current.localY = data.y;
-          setLocalPlayer({ userId, x: data.x, y: data.y, name: data.name });
+          setLocalPlayer({ userId, x: data.x, y: data.y, name: data.name, avatarId });
           onReady?.();
         } 
         // If the player is a remote player, we add them to the game store's remotePlayers Map using the addPlayer function.
@@ -146,7 +146,9 @@ export default function GameCanvas({ playerName, avatarId = 1, onReady, hidden }
     unsubs.push(onPlayerJoined(({ userId, x, y, name, avatarId: aid }) => {
       if (stateRef.current.players.has(userId)) return;
       createPlayer(userId, name, x, y, false, aid || 1);
-      addPlayer(userId, { x, y, name });
+      addPlayer(userId, { x, y, name, avatarId: aid || 1 });
+      console.log('[Join] stored avatarId:', aid, 'for', name);
+      addToast({ message: `${name} joined the cosmos`, type: 'join' });
     }));
 
     // The onPlayerLeft event listener is called when a player leaves the game, 
@@ -154,8 +156,10 @@ export default function GameCanvas({ playerName, avatarId = 1, onReady, hidden }
     //  also removes them from the game store.
     unsubs.push(onPlayerLeft(({ userId }) => {
       const p = stateRef.current.players.get(userId);
+      const name = useGameStore.getState().remotePlayers.get(userId)?.name || 'Someone';
       if (p) { p.fadeOut(stage); stateRef.current.players.delete(userId); }
       removePlayer(userId);
+      addToast({ message: `${name} left the cosmos`, type: 'leave' });
     }));
 
     // The onWorldState event listener is called when the server sends updated positions for all players in the game.
@@ -171,25 +175,35 @@ export default function GameCanvas({ playerName, avatarId = 1, onReady, hidden }
           p = createPlayer(uid, data.name || 'Unknown', data.x, data.y, false, data.avatarId || 1);
         }
         p.update(data.x, data.y);
+        useGameStore.getState().updatePlayerPosition(uid, data.x, data.y);
       }
     }));
 
     unsubs.push(onInteractStart(({ roomId, members }) => {
       setActiveChatRoom(roomId);
       setConnectedUsers(members);
-      addToast('Nearby chat started');
+      const others = members.filter(id => id !== stateRef.current.localId);
+      const remotePlayers = useGameStore.getState().remotePlayers;
+      const names = others.map(id => remotePlayers.get(id)?.name || 'Someone');
+      const label = names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+      addToast({ message: `${label} is nearby`, type: 'join' });
     }));
 
     unsubs.push(onInteractEnd(() => {
       setActiveChatRoom(null);
       setConnectedUsers([]);
-      addToast('Left nearby chat');
+      addToast({ message: 'Moved out of range', type: 'leave' });
     }));
 
     unsubs.push(onChatMessage((msg) => addChatMessage(msg)));
     unsubs.push(onChatHistory((msgs) => useGameStore.getState().setChatMessages(msgs)));
     unsubs.push(onLocationUpdate(({ userId, room }) => {
+      console.log('[Location]', userId, room);  // ← add here
       if (userId === stateRef.current.localId) setCurrentRoom(room);
+      const prev = useGameStore.getState().playerRooms;
+      const next = new Map(prev);
+      next.set(userId, room);
+      setPlayerRooms(next);
     }));
     unsubs.push(onStatusBatch((batch) => applyStatusBatch(batch)));
 
