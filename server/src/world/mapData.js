@@ -21,7 +21,7 @@ const obstacles = [
   { id: 'lobby_shelf_2',    x: 655,    y: 110,    width: 175, height: 100},
   { id: 'lobby_shelf_1',    x: 270,    y: 108,    width: 175, height: 100},
 
-  { id: 'corridor_plant_1',    x: 1025,    y: 480,    width: 65, height: 265},
+  { id: 'corridor_plant_1',    x: 1025,    y: 480,    width: 60, height: 265},
   { id: 'corridor_wall_1',    x: 1591,    y: 607,    width: 20, height: 146},
   { id: 'corridor_wall_2',    x: 1591,    y: 926,    width: 20, height: 146},
   { id: 'corridor_blankspace',    x: 1591,    y: 953,    width: 304, height: 91},
@@ -29,26 +29,17 @@ const obstacles = [
   { id: 'corridor_wall_3',    x: 304,    y: 989,    width: 192, height: 83},
   { id: 'corridor_wall_4',    x: 88,    y: 1023,    width: 60, height: 20},
 
-
-
-
-  { id: 'lounge_topright_wall',    x: 683,    y: 885,    width: 510, height: 20},
+  { id: 'lounge_topright_wall',    x: 683,    y: 894,    width: 510, height: 20},
   { id: 'lounge_topleft_wall',    x: 1322,    y: 885,    width: 50, height: 20},
   { id: 'lounge_right_wall',    x: 1355,    y: 887,    width: 20, height: 368},
   { id: 'lounge_rightbottom_wall',    x: 1355,    y: 1358,    width: 20, height: 45},
-  { id: 'lounge_rightbottom_wall',    x: 683,    y: 886,    width: 20, height: 514},
+  { id: 'lounge_rightbottom_wall',    x: 683,    y: 894,    width: 20, height: 514},
   { id: 'lounge_cabinet',    x: 705,    y: 912,    width: 67, height: 80},
   { id: 'lounge_sofa1',    x: 871,    y: 919,    width: 280, height: 60},
   { id: 'lounge_sofa2',    x: 870,    y: 1320,    width: 280, height: 60},
   { id: 'lounge_centretable',    x: 933,    y: 1110,    width: 171, height: 88},
   { id: 'lounge_table',    x: 1261,    y: 1071,    width: 94, height: 160},
   { id: 'lounge_shelf',    x: 704,    y: 1056,    width: 48, height: 242},
-
-
-
-
-
-
 
 
   { id: 'meetingroom_lefttop_wall',    x: 1250,    y: 88,    width: 20, height: 220},

@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 let _obstacles = [];
 
 const fetchMapData = async () => {
-  const res = await fetch(`${API_URL}/api/map`);
+  const res = await fetch('/api/map')
   return res.json();
 };
 
