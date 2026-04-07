@@ -4,12 +4,13 @@ import { emitChatMessage } from '../network/SocketClient';
 import t from '../theme';
 
 const fmt = (ts) => new Date(ts).toTimeString().slice(0, 5);
+const FIVE_MIN = 5 * 60 * 1000;
 
-// Module-level: persists collapsed state across chat session remounts
 let _collapsed = false;
 
 export default function ChatPanel() {
   const { chatMessages, activeChatRoom, clearChatMessages } = useGameStore();
+  const connectedUsers = useGameStore((s) => s.connectedUsers);
   const [input, setInput] = useState('');
   const [collapsed, setCollapsed] = useState(_collapsed);
   const bottomRef = useRef(null);
@@ -40,6 +41,12 @@ export default function ChatPanel() {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   };
 
+  const grouped = chatMessages.map((msg, i) => {
+    const prev = chatMessages[i - 1];
+    const isGrouped = prev && prev.from === msg.from && (msg.timestamp - prev.timestamp) < FIVE_MIN;
+    return { ...msg, isGrouped };
+  });
+
   return (
     <div style={{
       position: 'fixed', right: 0, top: 0, height: '100%',
@@ -48,7 +55,7 @@ export default function ChatPanel() {
       transition: 'transform 200ms ease-out',
       fontFamily: t.font,
     }}>
-      {/* Toggle tab — sticks out left of panel, stays visible when collapsed */}
+      {/* Collapse tab */}
       <button
         onClick={toggle}
         aria-label={collapsed ? 'Expand chat' : 'Collapse chat'}
@@ -63,44 +70,60 @@ export default function ChatPanel() {
 
       {/* Panel */}
       <div className="flex flex-col" style={{ width: 288, background: t.panelBg, borderLeft: `1px solid ${t.border}` }}>
-        <div className="px-3 py-2 text-xs font-medium tracking-widest uppercase"
-          style={{ color: t.textMuted, borderBottom: `1px solid ${t.border}` }}>
-          Nearby Chat
+
+        {/* Header — Discord channel style */}
+        <div className="px-3 flex items-center gap-2"
+          style={{ height: 48, borderBottom: `1px solid ${t.border}`, boxShadow: '0 1px 0 rgba(0,0,0,0.3)', flexShrink: 0 }}>
+          <span style={{ fontSize: 18, color: t.textMuted, lineHeight: 1 }}>#</span>
+          <span className="text-sm font-semibold" style={{ color: t.textPrimary }}>nearby</span>
+          {connectedUsers.length > 0 && (
+            <span className="ml-auto text-xs" style={{ color: t.textMuted }}>{connectedUsers.length} online</span>
+          )}
         </div>
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
-          {chatMessages.length === 0 && (
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2">
+          {grouped.length === 0 && (
             <div className="text-xs text-center mt-6" style={{ color: t.textMuted }}>No messages yet</div>
           )}
-          {chatMessages.map((msg, i) => (
-            <div key={`${msg.timestamp}-${msg.from}-${i}`} className="text-xs leading-relaxed">
-              <span className="font-medium mr-1" style={{ color: t.accent }}>{msg.name || msg.from.slice(0, 6)}</span>
-              <span style={{ color: t.textSecondary }}>{msg.text}</span>
-              <span className="ml-1" style={{ color: t.textMuted, fontSize: 10 }}>{fmt(msg.timestamp)}</span>
+          {grouped.map((msg, i) => (
+            <div key={`${msg.timestamp}-${msg.from}-${i}`} style={{ marginTop: msg.isGrouped ? 2 : 16 }}>
+              {!msg.isGrouped && (
+                <div className="flex items-baseline gap-2 mb-0.5">
+                  <span className="text-sm font-semibold" style={{ color: t.accent }}>
+                    {msg.name || msg.from.slice(0, 6)}
+                  </span>
+                  <span style={{ color: t.textMuted, fontSize: 10 }}>{fmt(msg.timestamp)}</span>
+                </div>
+              )}
+              <div className="text-sm leading-relaxed" style={{ color: t.textSecondary }}>
+                {msg.text}
+              </div>
             </div>
           ))}
           <div ref={bottomRef} />
         </div>
-        <div className="flex flex-col p-2 gap-1" style={{ borderTop: `1px solid ${t.border}` }}>
+
+        {/* Input */}
+        <div className="p-3" style={{ borderTop: `1px solid ${t.border}` }}>
           {input.length > 400 && (
-            <div className="text-xs text-right" style={{ color: 500 - input.length < 50 ? t.error : t.textMuted }}>
+            <div className="text-xs text-right mb-1" style={{ color: 500 - input.length < 50 ? t.error : t.textMuted }}>
               {500 - input.length}
             </div>
           )}
-          <div className="flex gap-1">
-            <input
-              className="flex-1 text-xs px-2 py-1.5 outline-none"
-              style={{ background: t.bg, color: t.textPrimary, border: `1px solid ${t.border}`, borderRadius: 8, fontFamily: t.font }}
-              value={input}
-              maxLength={500}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && send()}
-              placeholder="Say something..."
-            />
-            <button className="text-xs px-3 py-1.5 font-medium"
-              style={{ background: input.trim() ? t.accent : t.border, color: t.textPrimary, borderRadius: 8, opacity: input.trim() ? 1 : 0.5 }}
-              disabled={!input.trim()}
-              onClick={send}>Send</button>
-          </div>
+          <input
+            className="w-full text-sm px-3 py-2 outline-none"
+            style={{
+              background: t.bg, color: t.textPrimary,
+              border: `1px solid ${t.border}`, borderRadius: 8,
+              fontFamily: t.font,
+            }}
+            value={input}
+            maxLength={500}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && send()}
+            placeholder="Message #proximity-chat"
+          />
         </div>
       </div>
     </div>

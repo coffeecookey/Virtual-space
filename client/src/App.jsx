@@ -5,7 +5,6 @@ import GameCanvas from './components/GameCanvas';
 import ChatPanel from './components/ChatPanel';
 import UserPanel from './components/UserPanel';
 import LocationBar from './components/LocationBar';
-import HelpModal from './components/HelpModal';
 import Toast from './components/Toast';
 
 export default function App() {
@@ -22,7 +21,6 @@ export default function App() {
         <UserPanel />
         <LocationBar />
         <ChatPanel />
-        <HelpModal />
         <Toast />
       </>}
     </>

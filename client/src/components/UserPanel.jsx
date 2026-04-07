@@ -1,15 +1,7 @@
 import { useState } from 'react';
 import useGameStore from '../state/useGameStore';
 import UserCard from './UserCard';
-import { getMapRooms } from '../core/MapLoader';
 import t from '../theme';
-
-const getRoomForPos = (x, y) => {
-  const rooms = getMapRooms();
-  if (!rooms.length) return 'Hallway';
-  const r = rooms.find(r => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height);
-  return r ? r.name : 'Hallway';
-};
 
 const CHAR_FOLDERS = { 1: 'pink', 2: 'owl', 3: 'dude' };
 
@@ -25,21 +17,28 @@ function StatusDot({ status }) {
 function UserRow({ uid, name, avatarId, status, isLocal, selected, onSelect }) {
   return (
     <div className="relative flex items-center gap-2 px-3 py-1.5 cursor-pointer mx-1"
-      style={{ borderRadius: 8 }}
+      style={{ borderRadius: 6 }}
       onMouseEnter={e => e.currentTarget.style.background = t.surfaceHover}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
       onClick={() => !isLocal && onSelect(uid)}>
-      <div style={{ width: 24, height: 24, flexShrink: 0, overflow: 'hidden', borderRadius: 3 }}>
-        <img
-          src={`/sprites/${CHAR_FOLDERS[avatarId] || 'pink'}/static.png`}
-          alt=""
-          style={{ width: 24, height: 24, imageRendering: 'pixelated', display: 'block', objectFit: 'cover' }}
-        />
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{ width: 24, height: 24, overflow: 'hidden', borderRadius: 4 }}>
+          <img
+            src={`/sprites/${CHAR_FOLDERS[avatarId] || 'pink'}/static.png`}
+            alt=""
+            style={{ width: 24, height: 24, imageRendering: 'pixelated', display: 'block', objectFit: 'cover' }}
+          />
+        </div>
+        <span style={{
+          position: 'absolute', bottom: -1, right: -1,
+          width: 7, height: 7, borderRadius: '50%',
+          background: status === 'afk' ? t.statusAfk : t.statusOnline,
+          border: `1.5px solid ${t.panelBg}`,
+        }} />
       </div>
       <span className="flex-1 truncate" style={{ fontSize: 13, color: t.textPrimary }}>
         {name}{isLocal && <span style={{ color: t.textMuted, fontSize: 11 }}> (You)</span>}
       </span>
-      <StatusDot status={status} />
       {selected && <UserCard userId={uid} onClose={() => onSelect(null)} />}
     </div>
   );
@@ -50,13 +49,12 @@ export default function UserPanel() {
   const playerStatuses = useGameStore((s) => s.playerStatuses);
   const currentRoom    = useGameStore((s) => s.currentRoom);
   const localPlayer    = useGameStore((s) => s.localPlayer);
-  const playerRooms = useGameStore((s) => s.playerRooms);
+  const playerRooms    = useGameStore((s) => s.playerRooms);
   const [selected, setSelected] = useState(null);
 
   const total = remotePlayers.size + (localPlayer ? 1 : 0);
 
-  // Build room groups
-  const groups = {}; // roomName → [{ uid, name, avatarId, status, isLocal }]
+  const groups = {};
   const addToGroup = (roomName, entry) => {
     if (!groups[roomName]) groups[roomName] = [];
     groups[roomName].push(entry);
@@ -68,34 +66,33 @@ export default function UserPanel() {
   }
   for (const [uid, data] of remotePlayers.entries()) {
     const room = playerRooms.get(uid) || 'Hallway';
-    console.log('[UserPanel] user:', data.name, 'avatarId:', data.avatarId);
     addToGroup(room, { uid, name: data.name, avatarId: data.avatarId || 1, status: playerStatuses.get(uid) || 'online', isLocal: false });
   }
 
   const groupEntries = Object.entries(groups);
 
   return (
-    <div className="fixed left-0 top-0 h-full w-48 flex flex-col"
-      style={{ background: t.panelBg, borderRight: `1px solid ${t.border}`, fontFamily: t.font }}>
+    <div className="fixed left-0 top-0 h-full flex flex-col"
+      style={{ width: 240, background: t.panelBg, borderRight: `1px solid ${t.border}`, fontFamily: t.font }}>
 
-      {/* Panel header */}
-      <div className="px-3 py-2" style={{ borderBottom: `1px solid ${t.border}` }}>
-        <span style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
-          Online — {total}
-        </span>
+      {/* Server name header — Discord style */}
+      <div className="px-4 flex items-center justify-between"
+        style={{ height: 48, borderBottom: `1px solid ${t.border}`, boxShadow: '0 1px 0 rgba(0,0,0,0.3)', flexShrink: 0 }}>
+        <span className="text-sm font-bold truncate" style={{ color: t.textPrimary }}>Virtual Cosmos</span>
+        <span className="text-xs" style={{ color: t.textMuted }}>{total} online</span>
       </div>
 
       {/* Scrollable groups */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-2">
         {groupEntries.length === 0 && (
           <div className="px-3 py-4 text-xs" style={{ color: t.textMuted }}>No players online</div>
         )}
         {groupEntries.map(([roomName, users], gi) => (
-          <div key={roomName}>
-            {gi > 0 && <div style={{ height: 1, background: t.border, margin: '4px 12px' }} />}
-            <div className="px-3 pt-3 pb-1"
-              style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
-              {roomName} — {users.length}
+          <div key={roomName} className={gi > 0 ? 'mt-4' : ''}>
+            <div className="px-3 pt-1 pb-1 flex items-center justify-between"
+              style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+              <span>{roomName}</span>
+              <span>{users.length}</span>
             </div>
             {users.map(({ uid, name, avatarId, status, isLocal }) => (
               <UserRow
