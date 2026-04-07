@@ -37,7 +37,7 @@ A 2D virtual office where users move around and chat with nearby players in real
 
 ## Architecture
 
-<img width="1161" height="891" alt="arch" src="https://github.com/user-attachments/assets/3e2b56ca-7ac1-4eea-bb6c-59d4a030c539" />
+<img width="1172" height="903" alt="arch" src="https://github.com/user-attachments/assets/165dd28b-6cb3-4f4e-b243-5a07f0c61132" />
 
 
 The server runs a **20Hz game loop** (50ms tick) that broadcasts the full world state to all clients and runs the proximity engine each tick. All movement is validated server-side before being applied to the in-memory world state. MongoDB is used only for user sessions; all positional and chat state is in-memory.
