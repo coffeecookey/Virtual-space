@@ -7,6 +7,14 @@ A 2D virtual office where users move around and chat with nearby players in real
 [Live Deployed site](https://virtual-office-nmfs.onrender.com/) and 
 [Video link](https://canva.link/x5tzjghzu5690xp)
 
+---
+## Architecture
+
+<img width="1172" height="903" alt="arch" src="https://github.com/user-attachments/assets/165dd28b-6cb3-4f4e-b243-5a07f0c61132" />
+
+The server runs a **20Hz game loop** (50ms tick) that broadcasts the full world state to all clients and runs the proximity engine each tick. All movement is validated server-side before being applied to the in-memory world state. MongoDB is used only for user sessions; all positional and chat state is in-memory.
+
+---
 ## Some screenshots!
 <img width="786" height="550" alt="Screenshot 2026-04-07 at 22 21 02" src="https://github.com/user-attachments/assets/23081390-1a70-40c8-bdeb-54f2aa54680d" />
 
@@ -37,52 +45,109 @@ A 2D virtual office where users move around and chat with nearby players in real
 
 ---
 
-## Architecture
-
-<img width="1172" height="903" alt="arch" src="https://github.com/user-attachments/assets/165dd28b-6cb3-4f4e-b243-5a07f0c61132" />
-
-
-The server runs a **20Hz game loop** (50ms tick) that broadcasts the full world state to all clients and runs the proximity engine each tick. All movement is validated server-side before being applied to the in-memory world state. MongoDB is used only for user sessions; all positional and chat state is in-memory.
-
----
-
 ## Design Decisions
 
-**State authority: hybrid model**
-The client sends its position, the server validates bounds and speed, then rebroadcasts. The server is authoritative for proximity, rooms, and chat. Movement stays responsive for the local player while the server prevents cheating everywhere it matters.
+- **World State Stored in Memory**  
+  Player positions live in a server `Map`; MongoDB only logs user session joins/leaves to avoid high-frequency database writes.
 
-**World state in memory, not the database**
-All player positions are stored in a `Map` on the server. Position updates at 20Hz would overwhelm MongoDB with writes, so the DB is used only to log user join and leave events for sessions.
+- **Batched Tick-Based Broadcasting**  
+  Server collects movement updates and emits a single `world:state` snapshot at **20Hz**, keeping network traffic predictable.
 
-**Batched tick-based broadcasting**
-The server collects all position updates and broadcasts a single `world:state` snapshot per 20Hz tick via `setInterval`. Individual moves are not rebroadcast immediately. This keeps network traffic predictable and low.
+- **Proximity Detection with Hysteresis**  
+  Players connect below **150px** and disconnect above **195px**, preventing chat flicker near distance boundaries.
 
-**Proximity detection with hysteresis**
-Proximity runs server-side each tick. Players connect when distance drops below 150px and disconnect only when it exceeds 195px (1.3x the connect radius). The gap prevents the chat panel from flickering when two players hover near the boundary. Union-find groups connected pairs into clusters, so if A is near B and B is near C, all three share one chat room.
+- **Proximity Grouping via Union-Find**  
+  Nearby players form clusters using union-find, so **A–B** and **B–C** automatically become a shared group `{A,B,C}`.
 
-**Stable room IDs**
-`stableRoomId = [...members].sort().join('-')`. Sorting before joining means the same group of players always gets the same room ID regardless of who joined first. Chat history is kept in memory and not deleted when a room dissolves, so history survives brief separations.
+- **Stable Room IDs**  
+  Room IDs are derived from sorted member IDs (`A-B-C`) so the same group always maps to the same room.
 
-**Chat routing via server-derived room membership**
-The client sends message text only. The server looks up which room the sender belongs to and broadcasts via `io.to(roomId)`. Messages carry monotonic IDs for ordering and client-side deduplication. Full history is synced to a player when they join a room.
+- **Server-Derived Chat Routing**  
+  Clients send only message text; the server resolves the sender’s room and broadcasts via `io.to(roomId)`.
 
-**Movement validation on both sides**
-The client applies collision locally for instant feedback. The server independently validates every move: speed cap check (squared distance, no `sqrt`), bounds clamp to `MAP_BOUNDS`, and circle-vs-AABB collision against all obstacle rectangles (`PLAYER_RADIUS = 24`). Invalid positions are silently dropped. Each socket is also rate-limited to one move per 30ms.
+- **Monotonic Chat Message IDs**  
+  Each message carries an increasing ID for ordering and client-side deduplication.
 
-**Map and collision as a single source of truth**
-The background is an authored image. Collision rectangles are defined separately in `mapData.js` and served via `/api/map`. Both client and server import from the same data, so visual layout and game logic can never diverge.
+- **Chat History Sync on Join**  
+  When a user enters a room, the server sends the full chat history so conversations feel continuous.
 
-**Client rendering at 60fps from 20Hz updates**
-Remote player positions are lerped toward the latest server snapshot each frame (factor 0.15), giving smooth motion without waiting for the next tick. The local player is set directly with no lerp. All sprite sheets are pre-loaded and `PIXI.AnimatedSprite` objects for all three states (idle, walk, run) are created once per player and toggled by visibility, avoiding GPU churn. `NEAREST` scale mode is used for pixel art crispness.
+- **Chat History Bounded in Memory**  
+  Each room stores up to **50 messages** and the server stores **100 rooms max**, evicting the oldest room via `Map` LRU order.
 
-**Networking split between REST and Socket.IO**
-Map data and user join use REST. All real-time events (positions, proximity, chat) use Socket.IO. The client throttles position emits to 50ms and discards stale tick snapshots on arrival to handle out-of-order delivery.
+- **Chat History Preserved on Group Merge**  
+  When groups merge (`A–B + C → A–B–C`), previous room histories are merged so messages are never lost.
 
-**Reconnection is idempotent**
-Socket.IO auto-reconnects. On reconnect, the client re-emits `user:join`. The server join handler cleans up any existing state for that user before registering them again, so duplicate state never accumulates.
+- **Movement Validation on Both Client and Server**  
+  Client performs local collision for responsiveness; server revalidates speed, bounds, and obstacle collisions.
 
-**AFK detection via batch diffs**
-The server tracks `lastActive` per user and checks every 10 seconds. It only emits a `status:batch` event when statuses have actually changed, not on every interval, keeping idle broadcasts to zero.
+- **Efficient Movement Validation**  
+  Speed checks use **squared distance** (no `sqrt`) and sockets are rate-limited to **one move per 30ms**.
+
+- **Map and Collision Share One Source of Truth**  
+  Collision rectangles live in `mapData.js` and are served to both client and server via `/api/map`.
+
+- **Client Rendering at 60fps from 20Hz Updates**  
+  Remote players **lerp toward server positions** each frame for smooth motion between network ticks.
+
+- **Local Player Rendered Without Interpolation**  
+  The local player position is set directly to maintain instant responsiveness.
+
+- **Sprite Assets Preloaded**  
+  All sprite sheets load before joining so avatars appear immediately without missing textures.
+
+- **AnimatedSprite Reuse for Performance**  
+  Idle/walk/run sprites are created once per player and toggled via visibility to avoid GPU churn.
+
+- **Pixel-Art Rendering Settings**  
+  Pixi uses **NEAREST scale mode** so pixel art stays crisp during scaling.
+
+- **Networking Split Between REST and Sockets**  
+  Static data (map/config) uses **REST** while real-time events use **Socket.IO**.
+
+- **Client-Side Movement Throttling**  
+  Movement emits are throttled to **50ms** to prevent network flooding.
+
+- **Stale Tick Protection**  
+  Clients discard out-of-order world snapshots using **tick IDs**.
+
+- **Reconnection is Idempotent**  
+  On reconnect the client re-emits `user:join`, and the server cleans up any previous state.
+
+- **AFK Detection via Batched Diffs**  
+  Server checks activity every **10s** and emits `status:batch` only when statuses actually change.
+
+- **Avatar Selection Validated Server-Side**  
+  Server whitelist-checks `avatarId` and falls back to a default if the client sends an invalid value.
+
+- **Dual-Input Movement Support**  
+  Players can move via **WASD/arrow keys** or **click-to-move**, with keyboard input canceling click targets.
+
+- **Movement Disabled While Typing**  
+  Movement keys are cleared when an `input` or `textarea` is focused so players don’t walk while chatting.
+
+- **Player Fade-Out on Disconnect**  
+  Remote avatars fade out (`alpha -= 0.04`) before being removed from the stage.
+
+- **Location Rooms Derived from Coordinates**  
+  Server maps player coordinates to named areas (**lobby, meeting, lounge**) and emits `location:update`.
+
+- **Spawn Position is Fixed and Room-Aware**  
+  Players spawn at `{x:480, y:600}` in the **lobby** and receive location updates immediately on join.
+
+- **Sprite Flipping Preserves Readable Labels**  
+  Only the sprite sub-container flips horizontally so player names remain readable.
+
+- **Retina Rendering Support**  
+  Pixi uses `devicePixelRatio` with `autoDensity` for sharp rendering on **HiDPI displays**.
+
+- **Camera Keeps Player Centered**  
+  Camera translates the stage so the player remains centered in the viewport during movement.
+
+- **Camera Updates on Window Resize**  
+  A resize listener reapplies camera transforms so centering remains correct.
+
+- **Hot-Reload Safe Join Guard**  
+  A `hasJoined` flag prevents duplicate `user:join` emits during development hot reload.
 
 ---
 
@@ -163,9 +228,3 @@ virtual-cosmos/
         ├── world/          # mapData.js (room bounds + obstacle rectangles)
         └── GameLoop.js     # 20Hz tick
 ```
-
----
-
-## License
-
-MIT
