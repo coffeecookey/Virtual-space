@@ -125,7 +125,7 @@ const runProximity = (io) => {
 
   ids.forEach(uid => {
     const p = allPlayers[uid];
-    if (p) io.to(p.socketId).emit('location:update', { userId: uid, room: getLocationRoomId(p.x, p.y) });
+    if (p) io.emit('location:update', { userId: uid, room: getLocationRoomId(p.x, p.y) });
   });
 };
 

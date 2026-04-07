@@ -1,8 +1,6 @@
 const { updatePlayer, getPlayer } = require('../managers/WorldStateManager');
 const { MAP_BOUNDS, MAX_SPEED } = require('../config/constants');
 const { obstacles } = require('../world/mapData');
-const { rooms } = require('../world/mapData');
-const getRoomId = (x, y) => (rooms.find(r => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height)?.id) || 'hallway';
 
 const PLAYER_RADIUS = 24;
 const collidesWithObstacles = (x, y) => {
@@ -41,7 +39,6 @@ const registerMovementHandler = (socket, socketToUser) => {
       const cy = Math.min(Math.max(y, 0), MAP_BOUNDS.height);
       lastMoveTime.set(socket.id, now);
       updatePlayer(userId, cx, cy);
-      socket.emit('location:update', { userId, room: getRoomId(cx, cy) });
       return;
     }
 
@@ -50,7 +47,6 @@ const registerMovementHandler = (socket, socketToUser) => {
     const cy = Math.min(Math.max(y, 0), MAP_BOUNDS.height);
     if (collidesWithObstacles(cx, cy)) return;
     updatePlayer(userId, cx, cy);
-    socket.emit('location:update', { userId, room: getRoomId(cx, cy) });
   });
 
   socket.on('disconnect', () => lastMoveTime.delete(socket.id));
